@@ -10,30 +10,46 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
-  async function handleRegister(e) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name } }
-    })
-    if (error) setError(error.message)
-    else navigate('/dashboard')
-    setLoading(false)
+  function validatePassword(pwd) {
+    if (pwd.length < 6) return 'Password must be at least 6 characters'
+    if (!/[A-Z]/.test(pwd)) return 'Password must contain at least one uppercase letter'
+    if (!/[0-9]/.test(pwd)) return 'Password must contain at least one number'
+    return null
   }
+
+ async function handleRegister(e) {
+  e.preventDefault()
+  setLoading(true)
+  setError(null)
+
+  const validationError = validatePassword(password)
+  if (validationError) {
+    setError(validationError)
+    setLoading(false)
+    return
+  }
+
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name } }
+  })
+  if (error) setError(error.message)
+  else navigate('/dashboard')
+  setLoading(false)
+}
 
   return (
     <div style={styles.page}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <h1 style={styles.title}>StockFlow</h1>
+          <h1 style={styles.title}>StockMind</h1>
+          <h1 style={styles.subtitle}>AI-driven stock management</h1>
         </div>
 
         <form onSubmit={handleRegister} style={styles.form}>
           <div style={styles.field}>
-            <label style={styles.label}>Nume</label>
+            <label style={styles.label}>Name</label>
             <input
               type="text"
               value={name}
@@ -61,19 +77,18 @@ export default function Register() {
           </div>
 
           <div style={styles.field}>
-            <label style={styles.label}>Parolă</label>
+            <label style={styles.label}>Password</label>
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              minLength={6}
               style={styles.input}
               onFocus={e => e.target.style.borderColor = '#6366f1'}
               onBlur={e => e.target.style.borderColor = '#2a2d35'}
             />
-            <span style={styles.hint}>Minimum 6 caractere</span>
+            <span style={styles.hint}>At least 6 characters · 1 uppercase · 1 number</span>
           </div>
 
           {error && (
@@ -93,14 +108,14 @@ export default function Register() {
             onMouseEnter={e => { if (!loading) e.target.style.background = '#4f46e5' }}
             onMouseLeave={e => { if (!loading) e.target.style.background = '#6366f1' }}
           >
-            {loading ? 'Se creează contul...' : 'Creează cont'}
+            {loading ? 'Creating account...' : 'Create account'}
           </button>
         </form>
 
         <p style={styles.footer}>
-          Ai deja cont?{' '}
+        Already have an account?{' '}
           <Link to="/login" style={styles.link}>
-            Intră în cont
+          Sign in
           </Link>
         </p>
       </div>
@@ -135,6 +150,12 @@ const styles = {
     fontSize: '30px',
     fontWeight: '600',
     color: '#e8eaf0',
+    margin: '0 0 6px',
+  },
+  subtitle:{
+    fontSize:'20px',
+    fontWeight:'600',
+    color: '#4b5563',
     margin: '0 0 6px',
   },
   form: {

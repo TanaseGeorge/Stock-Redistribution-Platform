@@ -66,7 +66,7 @@ export default function Sidebar() {
           onMouseLeave={e => e.currentTarget.style.color = '#6b7080'}
         >
           <span style={styles.icon}>→</span>
-          Deconectare
+          Sign out
         </button>
       </div>
     </aside>

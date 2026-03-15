@@ -23,7 +23,8 @@ export default function Login() {
     <div style={styles.page}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <h1 style={styles.title}>StockFlow</h1>
+          <h1 style={styles.title}>StockMind</h1>
+          <h1 style={styles.subtitle}>AI-driven stock management</h1>
         </div>
 
         <form onSubmit={handleLogin} style={styles.form}>
@@ -42,7 +43,7 @@ export default function Login() {
           </div>
 
           <div style={styles.field}>
-            <label style={styles.label}>Parolă</label>
+            <label style={styles.label}>Password</label>
             <input
               type="password"
               value={password}
@@ -72,14 +73,14 @@ export default function Login() {
             onMouseEnter={e => { if (!loading) e.target.style.background = '#4f46e5' }}
             onMouseLeave={e => { if (!loading) e.target.style.background = '#6366f1' }}
           >
-            {loading ? 'Se încarcă...' : 'Intră în cont'}
+            {loading ? 'Loading...' : 'Sign in'}
           </button>
         </form>
 
         <p style={styles.footer}>
-          Nu ai cont?{' '}
+        Don't have an account?{' '}
           <Link to="/register" style={styles.link}>
-            Înregistrează-te
+          Sign up
           </Link>
         </p>
       </div>
@@ -114,6 +115,12 @@ const styles = {
     fontSize: '30px',
     fontWeight: '600',
     color: '#e8eaf0',
+    margin: '0 0 6px',
+  },
+  subtitle:{
+    fontSize:'20px',
+    fontWeight:'600',
+    color: '#4b5563',
     margin: '0 0 6px',
   },
   form: {
@@ -164,7 +171,7 @@ const styles = {
     marginTop: '4px',
   },
   footer: {
-    textAlign: 'left',
+    textAlign: 'center',
     fontSize: '13px',
     color: '#6b7080',
     marginTop: '24px',
