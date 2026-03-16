@@ -1,0 +1,120 @@
+ .login-page {
+   height: 100vh;
+   overflow: hidden;
+   background: #0e0f11;
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   font-family: 'DM Sans', sans-serif;
+   padding: 20px;
+ }
+
+ .login-card {
+   background: #16181c;
+   border: 1px solid #2a2d35;
+   border-radius: 16px;
+   padding: 40px;
+   width: 100%;
+   max-width: 400px;
+ }
+
+ .login-header {
+   text-align: center;
+   margin-bottom: 32px;
+ }
+
+ .login-title {
+   font-size: 30px;
+   font-weight: 600;
+   color: #e8eaf0;
+   margin: 0 0 6px;
+ }
+
+ .login-subtitle {
+   font-size: 20px;
+   font-weight: 600;
+   color: #4b5563;
+   margin: 0 0 6px;
+ }
+
+ .login-form {
+   display: flex;
+   flex-direction: column;
+   gap: 18px;
+ }
+
+ .login-field {
+   display: flex;
+   flex-direction: column;
+   gap: 6px;
+ }
+
+ .login-label {
+   font-size: 13px;
+   text-align: left;
+   font-weight: 500;
+   color: #9ca3af;
+ }
+
+ .login-input {
+   background: #1e2026;
+   border: 1px solid #2a2d35;
+   border-radius: 8px;
+   padding: 10px 14px;
+   font-size: 14px;
+   color: #e8eaf0;
+   outline: none;
+   transition: border-color 0.15s;
+   font-family: 'DM Sans', sans-serif;
+ }
+
+ .login-input:focus {
+   border-color: #6366f1;
+ }
+
+ .login-error {
+   background: #3a1515;
+   border: 1px solid #7f2020;
+   border-radius: 8px;
+   padding: 10px 14px;
+   font-size: 13px;
+   color: #f08080;
+ }
+
+ .login-button {
+   background: #6366f1;
+   border: none;
+   border-radius: 8px;
+   padding: 11px;
+   font-size: 14px;
+   font-weight: 600;
+   color: #fff;
+   transition: background 0.15s;
+   font-family: 'DM Sans', sans-serif;
+   margin-top: 4px;
+   cursor: pointer;
+ }
+
+ .login-button:hover {
+   background: #4f46e5;
+ }
+
+ .login-button.loading {
+   opacity: 0.7;
+   cursor: not-allowed;
+ }
+
+ .login-footer {
+   text-align: center;
+   font-size: 13px;
+   color: #6b7080;
+   margin-top: 24px;
+   margin-bottom: 0;
+ }
+
+ .login-link {
+   color: #818cf8;
+   text-decoration: none;
+   font-weight: 500;
+ }
+
