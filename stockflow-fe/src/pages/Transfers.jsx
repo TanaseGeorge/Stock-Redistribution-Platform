@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import supabase from "../api/supabase";
 import "../styles/Transfers.css";
+import {
+  ensureSystemState,
+  getSystemState,
+  markOptimizationRun,
+} from "../utils/systemState";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 export default function Transfers() {
   const [stores, setStores] = useState([]);
@@ -16,6 +23,9 @@ export default function Transfers() {
   const [error, setError] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
+  const [optimizationLoading, setOptimizationLoading] = useState(false);
+  const [optimizationMessage, setOptimizationMessage] = useState("");
+
   useEffect(() => {
     loadTransfersData();
   }, []);
@@ -25,13 +35,15 @@ export default function Transfers() {
       setLoading(true);
       setError("");
 
+      await ensureSystemState();
+
       const [
         { data: storesData, error: storesError },
         { data: productsData, error: productsError },
         { data: transfersData, error: transfersError },
       ] = await Promise.all([
-        supabase.from("stores").select("*"),
-        supabase.from("products").select("*"),
+        supabase.from("stores").select("*").order("name"),
+        supabase.from("products").select("*").order("name"),
         supabase
           .from("transfers")
           .select("*")
@@ -50,6 +62,53 @@ export default function Transfers() {
       setError("Nu am putut încărca transferurile.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleRunOptimization() {
+    try {
+      setOptimizationLoading(true);
+      setOptimizationMessage("");
+
+      const systemState = await getSystemState();
+
+      if (!systemState.stock_dirty_external) {
+        setOptimizationMessage(
+          "Optimization is locked. Run it again only after external stock changes like sales, restock or manual inventory edits."
+        );
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/optimize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          save_results: true,
+          clear_old_proposed: true,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Optimization failed.");
+      }
+
+      await markOptimizationRun();
+      await loadTransfersData();
+
+      setOptimizationMessage(
+        `Optimization completed successfully. ${data.recommendations_count} transfer(s) generated.`
+      );
+    } catch (err) {
+      console.error(err);
+      setOptimizationMessage(
+        err.message || "Nu am putut rula optimizarea."
+      );
+    } finally {
+      setOptimizationLoading(false);
     }
   }
 
@@ -90,30 +149,134 @@ export default function Transfers() {
     try {
       setActionLoadingId(id);
 
-      const { error } = await supabase
+      const { data: transfer, error: transferError } = await supabase
         .from("transfers")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (transferError) throw transferError;
+
+      if (!transfer) {
+        throw new Error("Transferul nu a fost găsit.");
+      }
+
+      if (String(transfer.status).toLowerCase() !== "approved") {
+        throw new Error("Doar transferurile aprobate pot fi finalizate.");
+      }
+
+      const sourceStoreId = transfer.source_store_id;
+      const destinationStoreId = transfer.destination_store_id;
+      const productId = transfer.product_id;
+      const quantity = Number(transfer.quantity || 0);
+
+      if (quantity <= 0) {
+        throw new Error("Cantitatea transferului este invalidă.");
+      }
+
+      const { data: sourceInventory, error: sourceError } = await supabase
+        .from("inventory")
+        .select("*")
+        .eq("store_id", sourceStoreId)
+        .eq("product_id", productId)
+        .single();
+
+      if (sourceError) throw sourceError;
+
+      if (!sourceInventory) {
+        throw new Error("Nu există stoc sursă pentru acest transfer.");
+      }
+
+      const currentSourceQty = Number(sourceInventory.quantity || 0);
+
+      if (currentSourceQty < quantity) {
+        throw new Error("Magazinul sursă nu are suficient stoc pentru acest transfer.");
+      }
+
+      const sourceNewQty = currentSourceQty - quantity;
+
+      const { data: destinationInventory, error: destinationFetchError } = await supabase
+        .from("inventory")
+        .select("*")
+        .eq("store_id", destinationStoreId)
+        .eq("product_id", productId)
+        .maybeSingle();
+
+      if (destinationFetchError) throw destinationFetchError;
+
+      const destinationCurrentQty = Number(destinationInventory?.quantity || 0);
+      const destinationNewQty = destinationCurrentQty + quantity;
+
+      const { error: sourceUpdateError } = await supabase
+        .from("inventory")
         .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
+          quantity: sourceNewQty,
         })
-        .eq("id", id);
+        .eq("id", sourceInventory.id);
 
-      if (error) throw error;
+      if (sourceUpdateError) throw sourceUpdateError;
 
-      setTransfers((prev) =>
-        prev.map((transfer) =>
-          transfer.id === id
-            ? {
-                ...transfer,
-                status: "completed",
-                completed_at: new Date().toISOString(),
-              }
-            : transfer
-        )
-      );
+      let destinationMutationDone = false;
+
+      try {
+        if (destinationInventory) {
+          const { error: destinationUpdateError } = await supabase
+            .from("inventory")
+            .update({
+              quantity: destinationNewQty,
+            })
+            .eq("id", destinationInventory.id);
+
+          if (destinationUpdateError) throw destinationUpdateError;
+        } else {
+          const { error: destinationInsertError } = await supabase
+            .from("inventory")
+            .insert({
+              store_id: destinationStoreId,
+              product_id: productId,
+              quantity: quantity,
+              min_stock: 0,
+              max_stock: null,
+            });
+
+          if (destinationInsertError) throw destinationInsertError;
+        }
+
+        destinationMutationDone = true;
+
+        const { error: transferUpdateError } = await supabase
+          .from("transfers")
+          .update({
+            status: "completed",
+            completed_at: new Date().toISOString(),
+          })
+          .eq("id", id);
+
+        if (transferUpdateError) throw transferUpdateError;
+      } catch (innerError) {
+        await supabase
+          .from("inventory")
+          .update({
+            quantity: currentSourceQty,
+          })
+          .eq("id", sourceInventory.id);
+
+        if (destinationMutationDone && destinationInventory) {
+          await supabase
+            .from("inventory")
+            .update({
+              quantity: destinationCurrentQty,
+            })
+            .eq("id", destinationInventory.id);
+        }
+
+        throw innerError;
+      }
+
+      await loadTransfersData();
     } catch (err) {
       console.error(err);
-      alert("Nu am putut marca transferul ca finalizat.");
+      alert(err.message || "Nu am putut marca transferul ca finalizat.");
     } finally {
       setActionLoadingId(null);
     }
@@ -161,7 +324,7 @@ export default function Transfers() {
       from: storeMap[item.source_store_id]?.name || "Magazin necunoscut",
       to: storeMap[item.destination_store_id]?.name || "Magazin necunoscut",
       product: productMap[item.product_id]?.name || "Produs necunoscut",
-      quantity: item.quantity || 0,
+      quantity: Number(item.quantity || 0),
       transportCost: Number(item.transport_cost || 0),
       estimatedProfit: Number(item.estimated_profit_gain || 0),
       status: item.status || "unknown",
@@ -254,6 +417,31 @@ export default function Transfers() {
         <p>Manage stock redistribution recommendations and movement history</p>
       </div>
 
+      <div className="transfers-card optimization-card">
+        <div className="optimization-content">
+          <div>
+            <h3>Generate New Transfers</h3>
+            <p>
+              Run the Python optimization algorithm to generate new stock
+              redistribution recommendations. You can run it again only after
+              external stock changes like sales, restock or manual edits.
+            </p>
+          </div>
+
+          <button
+            className="btn-primary optimize-btn"
+            onClick={handleRunOptimization}
+            disabled={optimizationLoading}
+          >
+            {optimizationLoading ? "Running..." : "Run Optimization"}
+          </button>
+        </div>
+
+        {optimizationMessage && (
+          <p className="optimization-message">{optimizationMessage}</p>
+        )}
+      </div>
+
       <div className="transfers-stats-grid">
         <div className="transfers-card stat-card">
           <span className="card-label">Total Transfers</span>
@@ -304,10 +492,10 @@ export default function Transfers() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option value="all" style={{ background: '#1e2026', color: '#f5f7ff' }}>All</option>
-              <option value="pending" style={{ background: '#1e2026', color: '#f5f7ff' }}>Pending</option>
-              <option value="approved" style={{ background: '#1e2026', color: '#f5f7ff' }}>Approved</option>
-              <option value="completed" style={{ background: '#1e2026', color: '#f5f7ff' }}>Completed</option>
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="completed">Completed</option>
             </select>
           </div>
 
@@ -317,12 +505,12 @@ export default function Transfers() {
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
             >
-             <option value="all" style={{ background: '#1e2026', color: '#f5f7ff' }}>All</option>
-            {stores.map((store) => (
-              <option key={store.id} value={store.id} style={{ background: '#1e2026', color: '#f5f7ff' }}>
-                {store.name}
-              </option>
-            ))}
+              <option value="all">All</option>
+              {stores.map((store) => (
+                <option key={store.id} value={store.id}>
+                  {store.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -332,9 +520,9 @@ export default function Transfers() {
               value={destinationFilter}
               onChange={(e) => setDestinationFilter(e.target.value)}
             >
-              <option value="all" style={{ background: '#1e2026', color: '#f5f7ff' }}>All</option>
+              <option value="all">All</option>
               {stores.map((store) => (
-                <option key={store.id} value={store.id} style={{ background: '#1e2026', color: '#f5f7ff' }}>
+                <option key={store.id} value={store.id}>
                   {store.name}
                 </option>
               ))}
