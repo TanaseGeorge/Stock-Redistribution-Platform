@@ -304,10 +304,10 @@ export default function Transfers() {
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option value="all">All</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="completed">Completed</option>
+              <option value="all" style={{ background: '#1e2026', color: '#f5f7ff' }}>All</option>
+              <option value="pending" style={{ background: '#1e2026', color: '#f5f7ff' }}>Pending</option>
+              <option value="approved" style={{ background: '#1e2026', color: '#f5f7ff' }}>Approved</option>
+              <option value="completed" style={{ background: '#1e2026', color: '#f5f7ff' }}>Completed</option>
             </select>
           </div>
 
@@ -317,12 +317,12 @@ export default function Transfers() {
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
             >
-              <option value="all">All</option>
-              {stores.map((store) => (
-                <option key={store.id} value={store.id}>
-                  {store.name}
-                </option>
-              ))}
+             <option value="all" style={{ background: '#1e2026', color: '#f5f7ff' }}>All</option>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id} style={{ background: '#1e2026', color: '#f5f7ff' }}>
+                {store.name}
+              </option>
+            ))}
             </select>
           </div>
 
@@ -332,9 +332,9 @@ export default function Transfers() {
               value={destinationFilter}
               onChange={(e) => setDestinationFilter(e.target.value)}
             >
-              <option value="all">All</option>
+              <option value="all" style={{ background: '#1e2026', color: '#f5f7ff' }}>All</option>
               {stores.map((store) => (
-                <option key={store.id} value={store.id}>
+                <option key={store.id} value={store.id} style={{ background: '#1e2026', color: '#f5f7ff' }}>
                   {store.name}
                 </option>
               ))}

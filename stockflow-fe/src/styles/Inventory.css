@@ -11,6 +11,7 @@
   .inventory-header {
     text-align: center;
     margin-bottom: 28px;
+    position: relative;
   }
   
   .inventory-header h1 {
@@ -25,6 +26,29 @@
     color: #8c92a8;
     margin: 0;
   }
+  
+  .inventory-header-actions {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  
+  .btn-add {
+    background: linear-gradient(135deg, #6d5dfc, #5b7cff);
+    border: none;
+    border-radius: 12px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.2s;
+    box-shadow: 0 8px 20px rgba(97, 102, 255, 0.25);
+    font-family: inherit;
+  }
+  
+  .btn-add:hover { opacity: 0.9; }
   
   .inventory-stats-grid {
     display: grid;
@@ -125,10 +149,10 @@
   .inventory-table-head,
   .inventory-table-row {
     display: grid;
-    grid-template-columns: 1.4fr 1.4fr 1fr 70px 60px 60px 110px 120px 80px;
+    grid-template-columns: 1.3fr 1.3fr 0.9fr 65px 55px 55px 105px 105px 115px 110px;
     gap: 12px;
     align-items: center;
-    min-width: 1000px;
+    min-width: 1100px;
   }
   
   .inventory-table-head {
@@ -167,25 +191,10 @@
     font-weight: 600;
   }
   
-  .status-pill.out {
-    background: rgba(255, 82, 82, 0.12);
-    color: #ff7a7a;
-  }
-  
-  .status-pill.low {
-    background: rgba(255, 184, 77, 0.12);
-    color: #ffbf66;
-  }
-  
-  .status-pill.surplus {
-    background: rgba(92, 195, 225, 0.12);
-    color: #5cc8e8;
-  }
-  
-  .status-pill.ok {
-    background: rgba(92, 225, 170, 0.12);
-    color: #68e7b2;
-  }
+  .status-pill.out { background: rgba(255, 82, 82, 0.12); color: #ff7a7a; }
+  .status-pill.low { background: rgba(255, 184, 77, 0.12); color: #ffbf66; }
+  .status-pill.surplus { background: rgba(92, 195, 225, 0.12); color: #5cc8e8; }
+  .status-pill.ok { background: rgba(92, 225, 170, 0.12); color: #68e7b2; }
   
   .danger-text { color: #ff7a7a; font-weight: 600; }
   .warning-text { color: #ffbf66; font-weight: 600; }
@@ -194,7 +203,7 @@
   .error-text { color: #ff7a7a !important; }
   
   .btn-edit-sm {
-    padding: 6px 14px;
+    padding: 6px 12px;
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.04);
@@ -207,6 +216,21 @@
   }
   
   .btn-edit-sm:hover { background: rgba(255, 255, 255, 0.08); }
+  
+  .btn-delete-sm {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 82, 82, 0.15);
+    background: rgba(255, 82, 82, 0.06);
+    color: #ff7a7a;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  
+  .btn-delete-sm:hover { background: rgba(255, 82, 82, 0.12); }
   
   .empty-state {
     padding: 18px 0;
@@ -237,6 +261,10 @@
     gap: 20px;
   }
   
+  .modal-wide {
+    max-width: 720px;
+  }
+  
   .modal h2 {
     font-size: 20px;
     font-weight: 600;
@@ -248,6 +276,27 @@
     font-size: 13px;
     color: #7d849d;
     margin: -12px 0 0;
+  }
+  
+  .modal-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  
+  .modal-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  
+  .modal-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6366f1;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 2px;
   }
   
   .modal-fields {
@@ -268,7 +317,8 @@
     font-weight: 500;
   }
   
-  .modal-field input {
+  .modal-field input,
+  .modal-select {
     height: 44px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -279,9 +329,13 @@
     font-size: 14px;
     font-family: inherit;
     transition: border-color 0.15s;
+    width: 100%;
+    box-sizing: border-box;
   }
   
-  .modal-field input:focus { border-color: rgba(120, 130, 255, 0.45); }
+  .modal-field input:focus,
+  .modal-select:focus { border-color: rgba(120, 130, 255, 0.45); }
+  .modal-field input::placeholder { color: #7d849d; }
   
   .modal-footer {
     display: flex;
@@ -324,6 +378,7 @@
   @media (max-width: 1200px) {
     .inventory-stats-grid { grid-template-columns: repeat(3, 1fr); }
     .filters-grid { grid-template-columns: 1fr 1fr; }
+    .modal-two-col { grid-template-columns: 1fr; }
   }
   
   @media (max-width: 768px) {
@@ -331,9 +386,5 @@
     .inventory-stats-grid { grid-template-columns: 1fr 1fr; }
     .filters-grid { grid-template-columns: 1fr; }
     .inventory-header h1 { font-size: 28px; }
+    .modal-wide { max-width: 100%; }
   }
-
-  .inventory-table-head,
-.inventory-table-row {
-  grid-template-columns: 1.4fr 1.4fr 1fr 70px 60px 60px 110px 110px 120px 80px;
-}

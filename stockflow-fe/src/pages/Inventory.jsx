@@ -15,10 +15,17 @@ export default function Inventory() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   const [editItem, setEditItem] = useState(null);
-  const [editQty, setEditQty] = useState("");
-  const [editMin, setEditMin] = useState("");
-  const [editMax, setEditMax] = useState("");
+  const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const emptyProduct = {
+    name: "", category: "", purchase_price: "", selling_price: "",
+    store_id: "", quantity: "", min_stock: "10", max_stock: "",
+    last_sale_at: "", last_restocked_at: ""
+  };
+  const [productForm, setProductForm] = useState(emptyProduct);
+  const [savingProduct, setSavingProduct] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -84,6 +91,8 @@ export default function Inventory() {
         store: store?.name || "Unknown",
         product: product?.name || "Unknown",
         category: product?.category || "",
+        purchasePrice: product?.purchase_price || 0,
+        sellingPrice: product?.selling_price || 0,
         quantity: qty,
         minStock: min,
         maxStock: max,
@@ -116,34 +125,103 @@ export default function Inventory() {
 
   function openEdit(item) {
     setEditItem(item);
-    setEditQty(String(item.quantity));
-    setEditMin(String(item.minStock));
-    setEditMax(item.maxStock != null ? String(item.maxStock) : "");
+    setEditForm({
+      name: item.product,
+      category: item.category,
+      purchase_price: String(item.purchasePrice),
+      selling_price: String(item.sellingPrice),
+      quantity: String(item.quantity),
+      min_stock: String(item.minStock),
+      max_stock: item.maxStock != null ? String(item.maxStock) : "",
+      last_sale_at: item.lastSaleAt ? item.lastSaleAt.split("T")[0] : "",
+      last_restocked_at: item.lastRestockedAt ? item.lastRestockedAt.split("T")[0] : "",
+    });
   }
 
   async function handleSave() {
     if (!editItem) return;
     setSaving(true);
     try {
-      const payload = {
-        quantity: Number(editQty),
-        min_stock: Number(editMin),
-        max_stock: editMax !== "" ? Number(editMax) : null,
-      };
-      const { error } = await supabase
+      const { error: invError } = await supabase
         .from("inventory")
-        .update(payload)
+        .update({
+          quantity: Number(editForm.quantity),
+          min_stock: Number(editForm.min_stock),
+          max_stock: editForm.max_stock !== "" ? Number(editForm.max_stock) : null,
+          last_sale_at: editForm.last_sale_at || null,
+          last_restocked_at: editForm.last_restocked_at || null,
+        })
         .eq("id", editItem.id);
-      if (error) throw error;
-      setInventory((prev) =>
-        prev.map((i) => (i.id === editItem.id ? { ...i, ...payload } : i))
-      );
+      if (invError) throw invError;
+
+      const { error: prodError } = await supabase
+        .from("products")
+        .update({
+          name: editForm.name.trim(),
+          category: editForm.category.trim() || null,
+          purchase_price: Number(editForm.purchase_price),
+          selling_price: Number(editForm.selling_price),
+        })
+        .eq("id", editItem.productId);
+      if (prodError) throw prodError;
+
+      await loadData();
       setEditItem(null);
     } catch (err) {
       console.error(err);
-      alert("Failed to update inventory.");
+      alert("Failed to update.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete(id) {
+    if (!confirm("Delete this item?")) return;
+    const { error } = await supabase.from("inventory").delete().eq("id", id);
+    if (error) { alert("Failed to delete."); return; }
+    setInventory((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  async function handleSaveProduct() {
+    if (!productForm.name.trim() || !productForm.store_id) {
+      alert("Name and store are required.");
+      return;
+    }
+    setSavingProduct(true);
+    try {
+      const { data: newProduct, error: productError } = await supabase
+        .from("products")
+        .insert({
+          name: productForm.name.trim(),
+          category: productForm.category.trim() || null,
+          purchase_price: Number(productForm.purchase_price || 0),
+          selling_price: Number(productForm.selling_price || 0),
+        })
+        .select()
+        .single();
+      if (productError) throw productError;
+
+      const { error: inventoryError } = await supabase
+        .from("inventory")
+        .insert({
+          store_id: productForm.store_id,
+          product_id: newProduct.id,
+          quantity: Number(productForm.quantity || 0),
+          min_stock: Number(productForm.min_stock || 10),
+          max_stock: productForm.max_stock ? Number(productForm.max_stock) : null,
+          last_sale_at: productForm.last_sale_at || null,
+          last_restocked_at: productForm.last_restocked_at || null,
+        });
+      if (inventoryError) throw inventoryError;
+
+      await loadData();
+      setShowAddProduct(false);
+      setProductForm(emptyProduct);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save product.");
+    } finally {
+      setSavingProduct(false);
     }
   }
 
@@ -178,6 +256,11 @@ export default function Inventory() {
       <div className="inventory-header">
         <h1>Inventory</h1>
         <p>Monitor and manage stock levels across all stores</p>
+        <div className="inventory-header-actions">
+          <button className="btn-add" onClick={() => { setProductForm(emptyProduct); setShowAddProduct(true); }}>
+            + Add Product
+          </button>
+        </div>
       </div>
 
       <div className="inventory-stats-grid">
@@ -277,9 +360,7 @@ export default function Inventory() {
                   item.status === "out" ? "danger-text" :
                   item.status === "low" ? "warning-text" :
                   item.status === "surplus" ? "info-text" : ""
-                }>
-                  {item.quantity}
-                </span>
+                }>{item.quantity}</span>
                 <span className="muted">{item.minStock}</span>
                 <span className="muted">{item.maxStock ?? "—"}</span>
                 <span className="muted">{formatDate(item.lastSaleAt)}</span>
@@ -290,9 +371,10 @@ export default function Inventory() {
                   </span>
                 </span>
                 <span>
-                  <button className="btn-edit-sm" onClick={() => openEdit(item)}>
-                    Edit
-                  </button>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button className="btn-edit-sm" onClick={() => openEdit(item)}>Edit</button>
+                    <button className="btn-delete-sm" onClick={() => handleDelete(item.id)}>Delete</button>
+                  </div>
                 </span>
               </div>
             ))
@@ -302,30 +384,121 @@ export default function Inventory() {
 
       {editItem && (
         <div className="modal-overlay" onClick={() => setEditItem(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Edit Stock</h2>
+          <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
+            <h2>Edit Item</h2>
             <p className="modal-subtitle">{editItem.product} · {editItem.store}</p>
-            <div className="modal-fields">
-              {[
-                { label: "Quantity", val: editQty, set: setEditQty },
-                { label: "Min Stock", val: editMin, set: setEditMin },
-                { label: "Max Stock (optional)", val: editMax, set: setEditMax },
-              ].map(({ label, val, set }) => (
-                <div key={label} className="modal-field">
-                  <label>{label}</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={val}
-                    onChange={(e) => set(e.target.value)}
-                  />
-                </div>
-              ))}
+            <div className="modal-two-col">
+              <div className="modal-col">
+                <p className="modal-section-title">Product info</p>
+                {[
+                  { label: "Name", key: "name", placeholder: "Product name" },
+                  { label: "Category", key: "category", placeholder: "e.g. Electronics" },
+                  { label: "Purchase price (RON)", key: "purchase_price", placeholder: "0", type: "number" },
+                  { label: "Selling price (RON)", key: "selling_price", placeholder: "0", type: "number" },
+                ].map(({ label, key, placeholder, type }) => (
+                  <div key={key} className="modal-field">
+                    <label>{label}</label>
+                    <input
+                      type={type || "text"}
+                      placeholder={placeholder}
+                      value={editForm[key]}
+                      onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="modal-col">
+                <p className="modal-section-title">Stock info</p>
+                {[
+                  { label: "Quantity", key: "quantity", type: "number" },
+                  { label: "Min stock", key: "min_stock", type: "number" },
+                  { label: "Max stock (optional)", key: "max_stock", type: "number" },
+                  { label: "Last sale", key: "last_sale_at", type: "date" },
+                  { label: "Last restock", key: "last_restocked_at", type: "date" },
+                ].map(({ label, key, type }) => (
+                  <div key={key} className="modal-field">
+                    <label>{label}</label>
+                    <input
+                      type={type || "text"}
+                      value={editForm[key]}
+                      onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setEditItem(null)}>Cancel</button>
               <button className="btn-save" onClick={handleSave} disabled={saving}>
                 {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddProduct && (
+        <div className="modal-overlay" onClick={() => setShowAddProduct(false)}>
+          <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
+            <h2>Add Product</h2>
+            <div className="modal-two-col">
+              <div className="modal-col">
+                <p className="modal-section-title">Product info</p>
+                {[
+                  { label: "Name *", key: "name", placeholder: "Product name" },
+                  { label: "Category", key: "category", placeholder: "e.g. Electronics" },
+                  { label: "Purchase price (RON)", key: "purchase_price", placeholder: "0", type: "number" },
+                  { label: "Selling price (RON)", key: "selling_price", placeholder: "0", type: "number" },
+                ].map(({ label, key, placeholder, type }) => (
+                  <div key={key} className="modal-field">
+                    <label>{label}</label>
+                    <input
+                      type={type || "text"}
+                      placeholder={placeholder}
+                      value={productForm[key]}
+                      onChange={(e) => setProductForm((f) => ({ ...f, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="modal-col">
+                <p className="modal-section-title">Stock info</p>
+                <div className="modal-field">
+                  <label>Store *</label>
+                  <select
+                    value={productForm.store_id}
+                    onChange={(e) => setProductForm((f) => ({ ...f, store_id: e.target.value }))}
+                    className="modal-select"
+                  >
+                    <option value="" style={{ background: '#1e2026', color: '#f5f7ff' }}>Select store</option>
+                    {stores.map((s) => (
+                      <option key={s.id} value={s.id} style={{ background: '#1e2026', color: '#f5f7ff' }}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {[
+                  { label: "Quantity", key: "quantity", type: "number", placeholder: "0" },
+                  { label: "Min stock", key: "min_stock", type: "number", placeholder: "10" },
+                  { label: "Max stock (optional)", key: "max_stock", type: "number", placeholder: "—" },
+                  { label: "Last sale (optional)", key: "last_sale_at", type: "date" },
+                  { label: "Last restock (optional)", key: "last_restocked_at", type: "date" },
+                ].map(({ label, key, type, placeholder }) => (
+                  <div key={key} className="modal-field">
+                    <label>{label}</label>
+                    <input
+                      type={type || "text"}
+                      placeholder={placeholder || ""}
+                      value={productForm[key]}
+                      onChange={(e) => setProductForm((f) => ({ ...f, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={() => setShowAddProduct(false)}>Cancel</button>
+              <button className="btn-save" onClick={handleSaveProduct} disabled={savingProduct}>
+                {savingProduct ? "Saving..." : "Save"}
               </button>
             </div>
           </div>
