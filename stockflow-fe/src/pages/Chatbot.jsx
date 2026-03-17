@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import supabase from "../api/supabase";
 import "../styles/Chatbot.css";
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 function buildSystemPrompt(stores, products, inventory, transfers, users) {
   const storeMap = {};
@@ -149,43 +149,41 @@ export default function Chatbot() {
 
   async function sendMessage() {
     if (!input.trim() || loading) return;
-
+  
     const userMessage = input.trim();
     setInput("");
     setMessages((prev) => [...prev, { role: "user", text: userMessage }]);
     setLoading(true);
-
+  
     try {
       const systemPrompt = buildSystemPrompt(stores, products, inventory, transfers, users);
-
-      const conversationHistory = messages
-        .slice(1)
-        .map((m) => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.text }],
-        }));
-
-      const response = await fetch(GEMINI_URL, {
+  
+      const response = await fetch(GROQ_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
+        },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [
-            ...conversationHistory,
-            { role: "user", parts: [{ text: userMessage }] },
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...messages.slice(1).map((m) => ({
+              role: m.role === "assistant" ? "assistant" : "user",
+              content: m.text,
+            })),
+            { role: "user", content: userMessage },
           ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1024,
-          },
+          temperature: 0.7,
+          max_tokens: 1024,
         }),
       });
-
+  
       const data = await response.json();
       const reply =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+        data?.choices?.[0]?.message?.content ||
         "Sorry, I couldn't generate a response. Please try again.";
-
+  
       setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
     } catch (err) {
       console.error(err);
